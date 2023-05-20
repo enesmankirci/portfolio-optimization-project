@@ -43,55 +43,57 @@ merged_data = merged_data.merge(msft_data, on='date')
 merged_data = merged_data.merge(fb_data, on='date')
 merged_data = merged_data.merge(spy_data, on='date')
 
-# Set the 'Date' column as the index
+# Convert 'date' column to datetime format
+merged_data['date'] = pd.to_datetime(merged_data['date'])
+
+# Set the 'date' column as the index
 merged_data = merged_data.set_index('date')
 
 # Display the merged data
+pd.set_option('display.max_columns', None)
 print(merged_data.head())
 
-# Calculate the daily returns for each stock
-daily_returns = merged_data.pct_change()
 
-# Display the daily returns
-print(daily_returns.head())
+# Resample data to monthly frequency
+monthly_data = merged_data.resample('M').last()
+
+# Calculate the monthly returns for each stock
+monthly_returns = monthly_data.pct_change()
 
 # Calculate the expected returns of each stock
-expected_returns = daily_returns.mean()
+expected_returns = monthly_returns.mean()
 
 # Calculate the covariance matrix of the portfolio
-cov_matrix = daily_returns.cov()
+cov_matrix = monthly_returns.cov()
 
 # Generate random weights for the portfolio
-weights = np.random.random(len(stocks))
+rng = np.random.default_rng()
+weights = rng.random(len(stocks))
 weights /= np.sum(weights)
 
 # Calculate the expected return and volatility of the portfolio
-expected_return = np.sum(expected_returns * weights) * 252
-volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))* np.sqrt(252)
+trading_months = len(monthly_data.index)  # Calculate the actual number of trading months
+expected_return = np.sum(expected_returns * weights) * trading_months
+volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(trading_months)
 
 # Calculate the Sharpe ratio of the portfolio
 sharpe_ratio = expected_return / volatility
 
-# Create arrays to store the values of Sharpe ratios and all possible weights
+# Simulate random portfolios and calculate Sharpe ratio for each portfolio
 num_portfolios = 1000
 sharpe_ratios = np.zeros(num_portfolios)
 all_weights = np.zeros((num_portfolios, len(stocks)))
 
-log_returns = np.log(merged_data / merged_data.shift(1))
-trading_days = len(merged_data.index)
-
-
-# Simulate random portfolios and calculate Sharpe ratio for each portfolio
 for i in range(num_portfolios):
     # Generate random weights for the portfolio
-    weights = np.random.random(len(stocks))
+    weights = rng.random(len(stocks))
     weights /= np.sum(weights)  # Ensure weights sum to 1.0
-    
-    # Calculate expected returns, volatility, and Sharpe ratio for the portfolio
-    expected_return = np.sum(log_returns.mean() * weights) * trading_days
-    volatility = np.sqrt(np.dot(weights.T, np.dot(log_returns.cov() * trading_days, weights)))
-    sharpe_ratios[i] = expected_return / volatility
-    
+
+    # Calculate expected returns and volatility for the portfolio
+    expected_returns = np.sum(monthly_returns.mean() * weights) * trading_months
+    volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(trading_months)
+    sharpe_ratios[i] = expected_returns / volatility
+
     # Store the weights for the portfolio
     all_weights[i, :] = weights
 
@@ -99,11 +101,16 @@ for i in range(num_portfolios):
 max_sharpe_idx = sharpe_ratios.argmax()
 optimal_weights = all_weights[max_sharpe_idx, :]
 
+# Calculate the expected return and volatility of the optimal portfolio
+expected_return = np.sum(expected_returns * optimal_weights) * trading_months
+volatility = np.sqrt(np.dot(optimal_weights.T, np.dot(cov_matrix, optimal_weights))) * np.sqrt(trading_months)
+sharpe_ratio = expected_return / volatility
+
 # Display the details of the optimal portfolio
 print("Optimal Weights:", optimal_weights)
 print("Expected Return:", expected_return)
 print("Volatility:", volatility)
-print("Sharpe Ratio:", sharpe_ratios[max_sharpe_idx])
+print("Sharpe Ratio:", sharpe_ratio)
 
 
 
